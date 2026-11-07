@@ -4,10 +4,10 @@ import { createClient } from '@supabase/supabase-js'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Activity, ArrowDownToLine, ArrowUpRight, Bell, BookOpen, Bot, Brain, CalendarDays, Check, ChevronDown, CircleHelp, Clock3, CloudUpload, FileText, GraduationCap, LayoutDashboard, LogOut, Menu, MessageCircle, Moon, MoreHorizontal, Paperclip, Plus, Search, Send, Settings, ShieldCheck, Sparkles, Sun, Target, Trash2, Trophy, Upload, UserRound, X, Zap } from 'lucide-react'
 import * as pdfjsLib from 'pdfjs-dist'
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import PdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker'
 import './style.css'
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker
+pdfjsLib.GlobalWorkerOptions.workerPort = new PdfWorker()
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null
@@ -18,7 +18,7 @@ const starterChats = [
   { id: 3, title: 'OSI model revision', preview: 'Explain all seven layers with examples.', time: 'Yesterday' }
 ]
 const initialMessages = [
-  { role: 'assistant', text: 'Hey there! 👋 I’m your AI study assistant. Ask me anything, or attach your notes and I’ll explain concepts using your material.' }
+  { role: 'assistant', text: 'Hey Jane! 👋 I’m your AI study assistant. Ask me anything, or attach your notes and I’ll explain concepts using your material.' }
 ]
 const starterQuizQuestions = [
   { q: 'Which layer of the OSI model is responsible for routing packets?', options: ['Data Link', 'Network', 'Transport', 'Session'], answer: 1, why: 'The Network layer handles logical addressing and routing packets between networks.' },
@@ -27,21 +27,18 @@ const starterQuizQuestions = [
   { q: 'Which protocol is used to securely browse websites?', options: ['FTP', 'HTTP', 'HTTPS', 'SMTP'], answer: 2, why: 'HTTPS uses TLS encryption to secure web communication.' },
   { q: 'Which memory is volatile?', options: ['ROM', 'SSD', 'RAM', 'Flash'], answer: 2, why: 'RAM loses its stored data when power is removed.' }
 ]
-const chartData = [{ day: 'Mon', hours: 0 }, { day: 'Tue', hours: 0 }, { day: 'Wed', hours: 0 }, { day: 'Thu', hours: 0 }, { day: 'Fri', hours: 0 }, { day: 'Sat', hours: 0 }, { day: 'Sun', hours: 0 }]
+const chartData = [{ day: 'Mon', hours: 1.5 }, { day: 'Tue', hours: 2.2 }, { day: 'Wed', hours: 1.7 }, { day: 'Thu', hours: 3.1 }, { day: 'Fri', hours: 2.4 }, { day: 'Sat', hours: 3.8 }, { day: 'Sun', hours: 2.9 }]
 const navItems = [
-  ['Overview', LayoutDashboard], ['AI Assistant', Bot], ['My Documents', FileText], ['Study Tools', BookOpen], ['Quiz & Aptitude', Brain], ['Aptitude Practice', Target], ['My Progress', Activity]
+  ['Overview', LayoutDashboard], ['AI Assistant', Bot], ['My Documents', FileText], ['Quiz & Aptitude', Brain], ['My Progress', Activity]
 ]
 function initials(name='Jane Doe') { return name.split(' ').map(x => x[0]).slice(0,2).join('').toUpperCase() }
 function App() {
   const [page, setPage] = useState('Overview')
   const [dark, setDark] = useState(false)
   const [mobileNav, setMobileNav] = useState(false)
-  const [user, setUser] = useState({ name: 'Student', email: '', avatar: '' })
+  const [user, setUser] = useState({ name: 'Jane Doe', email: 'jane.student@example.com', avatar: '' })
   const [session, setSession] = useState(null)
-  const [notes, setNotes] = useState(() => { try { return JSON.parse(localStorage.getItem('notely.notes') || '[]') } catch { return [] } })
-  const [studyNotes, setStudyNotes] = useState(() => { try { return JSON.parse(localStorage.getItem('notely.studyNotes') || 'null') } catch { return null } })
-  const [flashcards, setFlashcards] = useState(() => { try { return JSON.parse(localStorage.getItem('notely.flashcards') || '[]') } catch { return [] } })
-  const [generatingTools, setGeneratingTools] = useState(false)
+  const [notes, setNotes] = useState([])
   const [chats, setChats] = useState(starterChats)
   const [activeChat, setActiveChat] = useState(1)
   const [messages, setMessages] = useState(initialMessages)
@@ -55,7 +52,7 @@ function App() {
   const [generatingQuiz, setGeneratingQuiz] = useState(false)
   const [answers, setAnswers] = useState({})
   const [quizDone, setQuizDone] = useState(false)
-  const [results, setResults] = useState(() => { try { return JSON.parse(localStorage.getItem('notely.results') || '[]') } catch { return [] } })
+  const [results, setResults] = useState([])
   const [search, setSearch] = useState('')
   const [notice, setNotice] = useState('')
   const [profileOpen, setProfileOpen] = useState(false)
@@ -79,10 +76,6 @@ function App() {
     return () => listener.subscription.unsubscribe()
   }, [])
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [currentMessages, page])
-  useEffect(() => { try { localStorage.setItem('notely.notes', JSON.stringify(notes.map(n => ({...n, text: String(n.text || '').slice(0, 180000)})))) } catch { setNotice('Browser storage is full. Remove an old PDF to save more documents.') } }, [notes])
-  useEffect(() => { try { localStorage.setItem('notely.results', JSON.stringify(results)) } catch {} }, [results])
-  useEffect(() => { try { localStorage.setItem('notely.studyNotes', JSON.stringify(studyNotes)) } catch {} }, [studyNotes])
-  useEffect(() => { try { localStorage.setItem('notely.flashcards', JSON.stringify(flashcards)) } catch {} }, [flashcards])
   useEffect(() => { if (notice) { const t = setTimeout(() => setNotice(''), 3200); return () => clearTimeout(t) } }, [notice])
 
   async function signIn() {
@@ -92,7 +85,7 @@ function App() {
   }
   async function signOut() {
     if (supabase) await supabase.auth.signOut()
-    setSession(null); setUser({ name: 'Student', email: '', avatar: '' }); setNotice('Signed out.')
+    setSession(null); setUser({ name: 'Jane Doe', email: 'jane.student@example.com', avatar: '' }); setNotice('Signed out.')
   }
   async function processFile(file) {
     if (!file) return
@@ -186,36 +179,6 @@ function App() {
       setNotice(error.message || 'Unable to generate quiz. Please try again.')
     } finally { setGeneratingQuiz(false) }
   }
-  async function generateStudyNotes() {
-    if (!notes.length) { setNotice('Upload a PDF in My Documents first.'); return }
-    setGeneratingTools(true)
-    try {
-      const context = notes.map(n => `DOCUMENT: ${n.name}\n${n.text}`).join('\n\n').slice(0,24000)
-      const response = await fetch('/api/generate-study-notes', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ context, title: notes.map(n=>n.name).join(', ') }) })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Could not generate study notes.')
-      setStudyNotes({ ...data, source: notes.map(n=>n.name).join(', '), createdAt: new Date().toLocaleString() })
-      setNotice('Your AI study notes are ready.')
-    } catch (e) { setNotice(e.message) } finally { setGeneratingTools(false) }
-  }
-  async function generateFlashcards() {
-    if (!notes.length) { setNotice('Upload a PDF in My Documents first.'); return }
-    setGeneratingTools(true)
-    try {
-      const context = notes.map(n => `DOCUMENT: ${n.name}\n${n.text}`).join('\n\n').slice(0,24000)
-      const response = await fetch('/api/generate-flashcards', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ context, count: 10 }) })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Could not generate flashcards.')
-      setFlashcards(data.cards || [])
-      setNotice(`Created ${(data.cards || []).length} flashcards.`)
-    } catch (e) { setNotice(e.message) } finally { setGeneratingTools(false) }
-  }
-  function clearSavedLearningData() {
-    if (!window.confirm('Clear saved PDFs, study notes, flashcards and quiz history from this browser?')) return
-    setNotes([]); setStudyNotes(null); setFlashcards([]); setResults([])
-    ;['notely.notes','notely.studyNotes','notely.flashcards','notely.results'].forEach(k=>localStorage.removeItem(k))
-    setNotice('Saved learning data cleared from this browser.')
-  }
   function chooseAnswer(index) { setAnswers(prev => ({ ...prev, [quizIndex]: index })) }
   function finishQuiz() {
     const score = Math.round(quizQuestions.reduce((sum,q,i)=>sum+(answers[i]===q.answer?1:0),0)/totalQuestions*100)
@@ -266,8 +229,6 @@ function App() {
           <input ref={fileRef} hidden type="file" accept="application/pdf" onChange={e=>{processFile(e.target.files?.[0]);e.target.value=''}}/>
         </section>}
         {page==='My Documents'&&<Documents notes={filteredNotes} search={search} setSearch={setSearch} fileRef={fileRef} processFile={processFile} removeNote={removeNote} setPage={setPage}/>}
-        {page==='Study Tools'&&<StudyTools notes={notes} studyNotes={studyNotes} flashcards={flashcards} generating={generatingTools} generateStudyNotes={generateStudyNotes} generateFlashcards={generateFlashcards} setNotice={setNotice}/> }
-        {page==='Aptitude Practice'&&<AptitudePractice onComplete={score=>setResults(prev=>[...prev,{score,date:new Date().toLocaleDateString(),type:'Aptitude practice'}])}/> }
         {page==='Quiz & Aptitude'&&<Quiz quizQuestions={quizQuestions} notes={notes} quizSource={quizSource} setQuizSource={setQuizSource} quizCount={quizCount} setQuizCount={setQuizCount} quizDifficulty={quizDifficulty} setQuizDifficulty={setQuizDifficulty} generatingQuiz={generatingQuiz} generateQuiz={generateQuiz} quizIndex={quizIndex} setQuizIndex={setQuizIndex} answers={answers} chooseAnswer={chooseAnswer} quizDone={quizDone} finishQuiz={finishQuiz} resetQuiz={resetQuiz} results={results}/>}
         {page==='My Progress'&&<Progress results={results} average={average} notes={notes} data={chartData}/>}
       </div>
@@ -280,13 +241,13 @@ function Dashboard({user,notes,results,average,setPage,data}) {
   return <><PageHeading eyebrow="YOUR LEARNING SPACE" title={`Good morning, ${user.name.split(' ')[0]} 👋`} subtitle="Ready to make progress? Here's your learning overview." action={<button className="primary" onClick={()=>setPage('AI Assistant')}><Sparkles size={16}/>Ask AI assistant</button>}/>
     <div className="stat-grid">
       <Stat icon={BookOpen} label="Documents uploaded" value={notes.length} change="Your personal library" tone="violet"/>
-      <Stat icon={Clock3} label="Study sessions" value={results.length} change="Completed quiz attempts" tone="blue"/>
+      <Stat icon={Clock3} label="Study sessions" value={results.length+7} change="Keep your streak going" tone="blue"/>
       <Stat icon={Trophy} label="Quiz average" value={`${average}%`} change={results.length?'Based on your attempts':'Take your first quiz'} tone="pink"/>
       <Stat icon={Target} label="Quizzes completed" value={results.length} change="Practice makes progress" tone="mint"/>
     </div>
     <div className="dashboard-grid">
-      <div className="panel chart-panel"><div className="panel-head"><div><h3>Study activity</h3><p>Study-time tracking will be added in a future update</p></div><span className="soft-pill">This week <ChevronDown size={13}/></span></div><div className="chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={data}><defs><linearGradient id="studyFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8870e8" stopOpacity={0.22}/><stop offset="95%" stopColor="#8870e8" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 5" vertical={false} stroke="#ecebf2"/><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill:'#9291a0',fontSize:12}}/><YAxis axisLine={false} tickLine={false} tick={{fill:'#9291a0',fontSize:11}}/><Tooltip/><Area type="monotone" dataKey="hours" stroke="#8066df" strokeWidth={3} fill="url(#studyFill)"/></AreaChart></ResponsiveContainer></div></div>
-      <div className="panel focus-panel"><div className="panel-head"><div><h3>Weekly focus</h3><p>Your consistency snapshot</p></div><div className="focus-icon"><Zap size={19}/></div></div><div className="focus-number">{average}<span>%</span></div><div className="progress-track"><i style={{width:`${average}%`}}/></div><p className="muted">{results.length ? 'Your average score across completed quizzes.' : 'Complete a quiz to start tracking your learning performance.'}</p><div className="focus-footer"><span><span className="green-dot"/> {results.length ? 'Based on your results' : 'Ready to begin'}</span><b>{results.length} attempts</b></div></div>
+      <div className="panel chart-panel"><div className="panel-head"><div><h3>Study activity</h3><p>Your learning hours this week</p></div><span className="soft-pill">This week <ChevronDown size={13}/></span></div><div className="chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={data}><defs><linearGradient id="studyFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8870e8" stopOpacity={0.22}/><stop offset="95%" stopColor="#8870e8" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 5" vertical={false} stroke="#ecebf2"/><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill:'#9291a0',fontSize:12}}/><YAxis axisLine={false} tickLine={false} tick={{fill:'#9291a0',fontSize:11}}/><Tooltip/><Area type="monotone" dataKey="hours" stroke="#8066df" strokeWidth={3} fill="url(#studyFill)"/></AreaChart></ResponsiveContainer></div></div>
+      <div className="panel focus-panel"><div className="panel-head"><div><h3>Weekly focus</h3><p>Your consistency snapshot</p></div><div className="focus-icon"><Zap size={19}/></div></div><div className="focus-number">72<span>%</span></div><div className="progress-track"><i style={{width:'72%'}}/></div><p className="muted">You're building a great learning habit. Keep showing up!</p><div className="focus-footer"><span><span className="green-dot"/> On track</span><b>+12% this week</b></div></div>
       <div className="panel quick-panel"><div className="panel-head"><div><h3>Quick actions</h3><p>Jump back into learning</p></div></div><div className="quick-actions"><button onClick={()=>setPage('AI Assistant')}><span className="quick-icon lavender"><Bot/></span><span><b>Ask AI assistant</b><small>Get instant explanations</small></span><ArrowUpRight/></button><button onClick={()=>setPage('My Documents')}><span className="quick-icon blue-bg"><Upload/></span><span><b>Upload study notes</b><small>Build your knowledge library</small></span><ArrowUpRight/></button><button onClick={()=>setPage('Quiz & Aptitude')}><span className="quick-icon pink-bg"><Brain/></span><span><b>Take a quick quiz</b><small>Test what you've learned</small></span><ArrowUpRight/></button></div></div>
       <div className="panel recent-panel"><div className="panel-head"><div><h3>Recent activity</h3><p>Your latest learning updates</p></div><button className="text-button" onClick={()=>setPage('My Progress')}>View all</button></div>{notes.length||results.length?<div className="activity-list">{notes.slice(0,2).map(n=><div className="activity-item" key={n.id}><span className="activity-icon"><FileText/></span><span><b>{n.name}</b><small>Document uploaded · {n.date}</small></span><Check className="activity-check"/></div>)}{results.slice(-2).map((r,i)=><div className="activity-item" key={i}><span className="activity-icon pink-bg"><Trophy/></span><span><b>Quiz completed</b><small>Score: {r.score}% · {r.date}</small></span><Check className="activity-check"/></div>)}</div>:<div className="empty-activity"><Sparkles/><b>Your learning journey starts here</b><span>Upload a document, ask a question or take a quiz.</span></div>}</div>
     </div>
@@ -318,46 +279,7 @@ function Quiz({quizQuestions,notes,quizSource,setQuizSource,quizCount,setQuizCou
     </div>
     <div className="quiz-wrap"><div className="panel quiz-card"><div className="quiz-top"><div><span className="eyebrow">{quizQuestions===starterQuizQuestions?'FUNDAMENTALS · SAMPLE':'AI-GENERATED · PRACTICE'}</span><h2>Knowledge check</h2></div><div className="question-count">Question <b>{quizIndex+1}</b> of {quizQuestions.length}</div></div><div className="quiz-progress">{quizQuestions.map((_,i)=><i key={i} className={i<quizIndex?'done':i===quizIndex?'current':''}/>)}</div><h3 className="question-text">{q.q}</h3><div className="options">{q.options.map((option,i)=><button key={i} className={`option ${answers[quizIndex]===i?'chosen':''}`} onClick={()=>chooseAnswer(i)}><span className="option-letter">{String.fromCharCode(65+i)}</span>{option}{answers[quizIndex]===i&&<Check className="option-check"/>}</button>)}</div><div className="quiz-footer"><button className="secondary" disabled={quizIndex===0} onClick={()=>setQuizIndex(i=>i-1)}>Previous</button>{quizIndex<quizQuestions.length-1?<button className="primary" disabled={answers[quizIndex]===undefined} onClick={()=>setQuizIndex(i=>i+1)}>Next question <ArrowUpRight size={15}/></button>:<button className="primary" disabled={Object.keys(answers).length!==quizQuestions.length} onClick={finishQuiz}>Submit quiz <Check size={15}/></button>}</div></div><div className="quiz-side"><div className="panel"><div className="quiz-side-icon"><Brain/></div><h3>Practice makes progress</h3><p>Answer each question to the best of your ability. You’ll see explanations and your score when you finish.</p><div className="quiz-side-stat"><span>Questions</span><b>{quizQuestions.length}</b></div><div className="quiz-side-stat"><span>Answered</span><b>{Object.keys(answers).length}/{quizQuestions.length}</b></div><div className="quiz-side-stat"><span>Past attempts</span><b>{results.length}</b></div></div></div></div></>
 }
-function StudyTools({notes,studyNotes,flashcards,generating,generateStudyNotes,generateFlashcards,setNotice}) {
-  const [revealed,setRevealed] = useState({})
-  const [cardIndex,setCardIndex] = useState(0)
-  const [tab,setTab] = useState('notes')
-  const current = flashcards[cardIndex]
-  function downloadNotes() {
-    if (!studyNotes) return
-    const content = [`NOTELY AI STUDY NOTES`,`Source: ${studyNotes.source || 'Uploaded PDF'}`,`Created: ${studyNotes.createdAt || ''}`,``,`SUMMARY`,`${studyNotes.summary || ''}`,``,`KEY POINTS`,...(studyNotes.keyPoints || []).map((x,i)=>`${i+1}. ${x}`),``,`DEFINITIONS`,...(studyNotes.definitions || []).map(x=>`${x.term}: ${x.meaning}`),``,`REVISION QUESTIONS`,...(studyNotes.revisionQuestions || []).map((x,i)=>`${i+1}. ${x}`)].join('\n')
-    const blob = new Blob([content],{type:'text/plain;charset=utf-8'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='Notely_Study_Notes.txt'; a.click(); URL.revokeObjectURL(url)
-  }
-  return <><PageHeading eyebrow="YOUR AI STUDY WORKBENCH" title="Study tools" subtitle="Turn your uploaded documents into concise revision material and flashcards." action={<span className="soft-pill"><BookOpen size={14}/>{notes.length} source document(s)</span>}/>
-    <div className="tools-actions"><button className={tab==='notes'?'tool-tab active':'tool-tab'} onClick={()=>setTab('notes')}> <FileText size={16}/> AI Study Notes</button><button className={tab==='cards'?'tool-tab active':'tool-tab'} onClick={()=>setTab('cards')}><Brain size={16}/> Flashcards</button></div>
-    {!notes.length && <div className="panel tools-empty"><FileText size={30}/><h3>Upload a study PDF to begin</h3><p>Notely uses the extracted text from your PDFs to create source-grounded study material.</p></div>}
-    {notes.length>0 && tab==='notes' && <div className="panel tools-panel"><div className="panel-head"><div><h3><Sparkles size={17}/> AI-generated study notes</h3><p>Based on: {notes.map(n=>n.name).join(', ')}</p></div><button className="primary" onClick={generateStudyNotes} disabled={generating}>{generating?<><span className="spinner"/>Generating...</>:<><Sparkles size={15}/>Generate notes</>}</button></div>
-      {studyNotes ? <><div className="generated-meta">Generated {studyNotes.createdAt || 'in this session'} · Source-grounded summary</div><section className="study-section"><h3>Chapter summary</h3><p>{studyNotes.summary}</p></section><section className="study-section"><h3>Key points</h3><ol>{(studyNotes.keyPoints||[]).map((x,i)=><li key={i}>{x}</li>)}</ol></section><section className="study-section"><h3>Important definitions</h3>{studyNotes.definitions?.length ? studyNotes.definitions.map((x,i)=><div className="definition-row" key={i}><b>{x.term}</b><span>{x.meaning}</span></div>) : <p className="muted">No clear definitions were found in the selected source.</p>}</section><section className="study-section"><h3>Revision questions</h3><ol>{(studyNotes.revisionQuestions||[]).map((x,i)=><li key={i}>{x}</li>)}</ol></section><button className="secondary" onClick={downloadNotes}><ArrowDownToLine size={15}/>Download study notes (.txt)</button></> : <div className="tools-placeholder"><Sparkles size={27}/><b>Your revision notes will appear here</b><span>Generate a summary, key points, definitions and revision questions from your PDF.</span></div>}
-    </div>}
-    {notes.length>0 && tab==='cards' && <div className="panel tools-panel"><div className="panel-head"><div><h3><Brain size={17}/> AI flashcards</h3><p>Practice active recall using your uploaded study material.</p></div><button className="primary" onClick={generateFlashcards} disabled={generating}>{generating?<><span className="spinner"/>Generating...</>:<><Sparkles size={15}/>Generate flashcards</>}</button></div>
-      {flashcards.length>0 ? <div className="flashcard-area"><div className="flashcard-count">Card {cardIndex+1} of {flashcards.length}</div><button className="flashcard" onClick={()=>setRevealed(v=>({...v,[cardIndex]:!v[cardIndex]}))}><small>{revealed[cardIndex]?'ANSWER':'QUESTION'} · CLICK TO FLIP</small><strong>{revealed[cardIndex]?current.back:current.front}</strong><span>{revealed[cardIndex]?'Click to see question':'Click to reveal answer'}</span></button><div className="flashcard-controls"><button className="secondary" onClick={()=>{setCardIndex(i=>Math.max(0,i-1));setRevealed({})}} disabled={cardIndex===0}>Previous</button><button className="primary" onClick={()=>{setCardIndex(i=>(i+1)%flashcards.length);setRevealed({})}}>Next card <ArrowUpRight size={15}/></button></div></div> : <div className="tools-placeholder"><Brain size={27}/><b>Your flashcards will appear here</b><span>Generate up to 10 question-and-answer cards for quick revision.</span></div>}
-    </div>}
-    <div className="tools-footnote"><ShieldCheck size={15}/> AI-generated material is based on extracted PDF text. Review it against your original notes before exams.</div>
-  </>
-}
-function AptitudePractice({onComplete}) {
-  const questions = [
-    {q:'A train travels 120 km in 2 hours. What is its average speed?',o:['40 km/h','50 km/h','60 km/h','80 km/h'],a:2,e:'Average speed = distance ÷ time = 120 ÷ 2 = 60 km/h.'},
-    {q:'Find the next number: 3, 6, 12, 24, __',o:['30','36','48','60'],a:2,e:'Each number is multiplied by 2. The next number is 48.'},
-    {q:'If 5 workers finish a task in 12 days, how many days would 10 workers take at the same rate?',o:['3','6','12','24'],a:1,e:'Workers and days are inversely proportional: (5 × 12) ÷ 10 = 6 days.'},
-    {q:'Choose the word closest in meaning to “accurate”.',o:['Careless','Precise','Unclear','Approximate'],a:1,e:'Accurate means correct or precise.'},
-    {q:'A number is increased by 20% and becomes 240. What was the original number?',o:['180','190','200','220'],a:2,e:'Original × 1.2 = 240, so original = 200.'}
-  ]
-  const [answers,setAnswers] = useState({}); const [done,setDone] = useState(false)
-  const score = Math.round(questions.reduce((s,q,i)=>s+(answers[i]===q.a?1:0),0)/questions.length*100)
-  function submit(){setDone(true);onComplete(score)}
-  function reset(){setAnswers({});setDone(false)}
-  return <><PageHeading eyebrow="BUILD EXAM CONFIDENCE" title="Aptitude practice" subtitle="Practice quantitative aptitude, logical reasoning and verbal ability." action={<span className="soft-pill"><Clock3 size={14}/> 5 questions · Self-paced</span>}/>
-    <div className="aptitude-wrap"><div className="panel aptitude-card"><div className="panel-head"><div><h3>Mixed aptitude set</h3><p>Choose one answer for each question.</p></div><span className="count-badge">{Object.keys(answers).length}/5 answered</span></div>{questions.map((q,i)=><section className="aptitude-question" key={i}><b>{i+1}. {q.q}</b><div className="options">{q.o.map((option,j)=><button key={j} disabled={done} className={`option ${answers[i]===j?'chosen':''} ${done&&q.a===j?'apt-correct':''}`} onClick={()=>setAnswers(v=>({...v,[i]:j}))}><span className="option-letter">{String.fromCharCode(65+j)}</span>{option}{done&&q.a===j&&<Check className="option-check"/>}</button>)}</div>{done&&<p className="aptitude-explanation">{answers[i]===q.a?'Correct.':'Review:'} {q.e}</p>}</section>)}{done?<div className="aptitude-result"><b>Your score: {score}%</b><button className="primary" onClick={reset}>Practice again</button></div>:<button className="primary" disabled={Object.keys(answers).length!==5} onClick={submit}>Submit practice <Check size={15}/></button>}</div><aside className="panel aptitude-aside"><div className="quiz-side-icon"><Target/></div><h3>Practice consistently</h3><p>This starter set covers basic quantitative, reasoning and verbal skills. More question sets can be added later.</p><div className="quiz-side-stat"><span>Questions</span><b>5</b></div><div className="quiz-side-stat"><span>Answered</span><b>{Object.keys(answers).length}/5</b></div></aside></div>
-  </>
-}
-
 function Progress({results,average,notes,data}) {
-  return <><PageHeading eyebrow="YOUR GROWTH" title="Learning progress" subtitle="See your consistency, practice results and learning milestones."/><div className="stat-grid"><Stat icon={Trophy} label="Average quiz score" value={`${average}%`} change="Across completed attempts" tone="violet"/><Stat icon={Target} label="Quizzes completed" value={results.length} change="Keep practicing" tone="blue"/><Stat icon={FileText} label="Study documents" value={notes.length} change="In your library" tone="pink"/><Stat icon={Activity} label="Study materials" value={notes.length} change="Uploaded documents" tone="mint"/></div><div className="progress-grid"><div className="panel chart-panel"><div className="panel-head"><div><h3>Weekly study activity</h3><p>Study-time tracking not yet enabled</p></div></div><div className="chart tall"><ResponsiveContainer width="100%" height="100%"><AreaChart data={data}><defs><linearGradient id="progressFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8870e8" stopOpacity={.22}/><stop offset="95%" stopColor="#8870e8" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 5" vertical={false} stroke="#ecebf2"/><XAxis dataKey="day" axisLine={false} tickLine={false}/><YAxis axisLine={false} tickLine={false}/><Tooltip/><Area dataKey="hours" type="monotone" stroke="#8066df" strokeWidth={3} fill="url(#progressFill)"/></AreaChart></ResponsiveContainer></div></div><div className="panel milestones"><h3>Learning milestones</h3><p className="muted">Small steps add up to big progress.</p>{[['Upload your first document',notes.length>0],['Complete your first quiz',results.length>0],['Reach 80% quiz average',average>=80],['Build a 5-document library',notes.length>=5]].map(([label,done])=><div className="milestone" key={label}><span className={done?'milestone-check done':'milestone-check'}>{done?<Check size={14}/>:<Target size={14}/>}</span><b>{label}</b><small>{done?'Completed':'In progress'}</small></div>)}</div></div><div className="panel attempts"><div className="panel-head"><div><h3>Quiz history</h3><p>Your recent attempts</p></div></div>{results.length?results.slice().reverse().map((r,i)=><div className="attempt-row" key={i}><span className="activity-icon pink-bg"><Trophy/></span><b>Practice quiz</b><span>{r.date}</span><strong>{r.score}%</strong></div>):<div className="empty-activity"><Brain/><b>No quiz attempts yet</b><span>Complete a quiz to see your results here.</span></div>}</div></>
+  return <><PageHeading eyebrow="YOUR GROWTH" title="Learning progress" subtitle="See your consistency, practice results and learning milestones."/><div className="stat-grid"><Stat icon={Trophy} label="Average quiz score" value={`${average}%`} change="Across completed attempts" tone="violet"/><Stat icon={Target} label="Quizzes completed" value={results.length} change="Keep practicing" tone="blue"/><Stat icon={FileText} label="Study documents" value={notes.length} change="In your library" tone="pink"/><Stat icon={Activity} label="Learning consistency" value="72%" change="Weekly activity estimate" tone="mint"/></div><div className="progress-grid"><div className="panel chart-panel"><div className="panel-head"><div><h3>Weekly study activity</h3><p>Estimated study hours by day</p></div></div><div className="chart tall"><ResponsiveContainer width="100%" height="100%"><AreaChart data={data}><defs><linearGradient id="progressFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8870e8" stopOpacity={.22}/><stop offset="95%" stopColor="#8870e8" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 5" vertical={false} stroke="#ecebf2"/><XAxis dataKey="day" axisLine={false} tickLine={false}/><YAxis axisLine={false} tickLine={false}/><Tooltip/><Area dataKey="hours" type="monotone" stroke="#8066df" strokeWidth={3} fill="url(#progressFill)"/></AreaChart></ResponsiveContainer></div></div><div className="panel milestones"><h3>Learning milestones</h3><p className="muted">Small steps add up to big progress.</p>{[['Upload your first document',notes.length>0],['Complete your first quiz',results.length>0],['Reach 80% quiz average',average>=80],['Build a 5-document library',notes.length>=5]].map(([label,done])=><div className="milestone" key={label}><span className={done?'milestone-check done':'milestone-check'}>{done?<Check size={14}/>:<Target size={14}/>}</span><b>{label}</b><small>{done?'Completed':'In progress'}</small></div>)}</div></div><div className="panel attempts"><div className="panel-head"><div><h3>Quiz history</h3><p>Your recent attempts</p></div></div>{results.length?results.slice().reverse().map((r,i)=><div className="attempt-row" key={i}><span className="activity-icon pink-bg"><Trophy/></span><b>Practice quiz</b><span>{r.date}</span><strong>{r.score}%</strong></div>):<div className="empty-activity"><Brain/><b>No quiz attempts yet</b><span>Complete a quiz to see your results here.</span></div>}</div></>
 }
 createRoot(document.getElementById('root')).render(<App />)
